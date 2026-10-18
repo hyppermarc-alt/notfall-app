@@ -1,6 +1,6 @@
 /* Offline-Speicher: Nach dem ersten Öffnen läuft die App ohne Netz.
    Bei jeder Änderung an der App VERSION hochzählen, damit Handys die neue Fassung laden. */
-const VERSION = 'notfall-test-20261018125405';
+const VERSION = 'notfall-test-20261018163106';
 const ASSETS = [
   './',
   'index.html',
