@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notfall-Information</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#d0021b">
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f3f3f5; --text: #111114; --muted: #56565f; --line: #d6d6dd;
+    --red: #d0021b; --red-soft: #fde9eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e0e10; --surface: #1b1b20; --text: #f3f3f5; --muted: #a7a7b1; --line: #34343c; --red: #e0182f; --red-soft: #3a1016; }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 18px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: inherit; touch-action: manipulation; }
+  .top {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    background: var(--red); color: #fff;
+  }
+  .top b { font-size: 17px; letter-spacing: .03em; }
+  .top a { flex: none; white-space: nowrap; display: inline-flex; align-items: center; min-height: 48px; padding: 0 18px; border-radius: 999px; background: #fff; color: #d0021b; font-weight: 800; font-size: 19px; text-decoration: none; }
+  main { max-width: 640px; margin: 0 auto; padding: 20px max(16px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0; }
+  .sub { color: var(--muted); margin: 4px 0 16px; }
+  .blood { display: inline-block; padding: 8px 18px; border-radius: 16px; background: var(--red); color: #fff; margin-bottom: 16px; }
+  .blood small { display: block; font-size: 13px; opacity: .9; }
+  .blood b { font-size: 36px; line-height: 1.05; }
+  section { margin: 0 0 12px; padding: 14px 16px; border-radius: 16px; background: var(--surface); }
+  section h2 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  section p { margin: 0; font-size: 19px; }
+  section.alert { background: var(--red-soft); border-left: 6px solid var(--red); }
+  section.alert p { color: var(--red); font-weight: 750; }
+  .contact { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 8px 0; text-decoration: none; border-top: 1px solid var(--line); }
+  .contact:first-of-type { border-top: 0; }
+  .contact span { font-size: 15px; color: var(--muted); display: block; }
+  .contact em { font-style: normal; font-weight: 800; color: var(--red); white-space: nowrap; }
+  .foot { margin-top: 20px; font-size: 14px; color: var(--muted); }
+  .error { padding: 20px; border-radius: 16px; background: var(--surface); }
+</style>
+</head>
+<body>
+<header class="top"><b>NOTFALL-INFORMATION</b><a href="tel:112">112 anrufen</a></header>
+<main id="out"><p class="error">Notfall-Code wird gelesen …</p></main>
+<noscript><p style="padding:16px">Zum Anzeigen bitte JavaScript aktivieren.</p></noscript>
+<script>
+  'use strict';
+  (function () {
+    // Gegenstück zu personPayload() in app.js (Format v1). Die Daten stehen nur hinter "#".
+    var out = document.getElementById('out');
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+    var br = function (s) { return esc(s).replace(/\n/g, '<br>'); };
+    var tel = function (n) { return 'tel:' + String(n).replace(/[^\d+]/g, ''); };
+    var ymd = function (s) { return /^\d{8}$/.test(s || '') ? s.slice(6, 8) + '.' + s.slice(4, 6) + '.' + s.slice(0, 4) : ''; };
+
+    function decode(hash) {
+      var s = hash.replace(/^#/, '').replace(/-/g, '+').replace(/_/g, '/');
+      while (s.length % 4) s += '=';
+      var bin = atob(s);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    }
+
+    function age(geb) {
+      if (!/^\d{8}$/.test(geb || '')) return '';
+      var y = +geb.slice(0, 4), m = +geb.slice(4, 6), d = +geb.slice(6, 8);
+      var now = new Date();
+      var a = now.getFullYear() - y - ((now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) ? 1 : 0);
+      return a >= 0 && a < 130 ? a + ' Jahre' : '';
+    }
+
+    try {
+      var f = decode(location.hash).split('\x1f');
+      if (f[0] !== '1' || !f[2]) throw new Error('format');
+      var get = function (i) { return f[i] || ''; };
+      var sec = function (title, val, cls) { return val ? '<section' + (cls ? ' class="' + cls + '"' : '') + '><h2>' + title + '</h2><p>' + br(val) + '</p></section>' : ''; };
+      var geb = get(3);
+      var html = '<h1>' + esc(get(2)) + '</h1>';
+      var meta = [geb ? 'geb. ' + ymd(geb) : '', age(geb)].filter(Boolean).join(' · ');
+      html += meta ? '<p class="sub">' + meta + '</p>' : '<p class="sub"></p>';
+      if (get(4)) html += '<div class="blood"><small>Blutgruppe</small><b>' + esc(get(4)) + '</b></div>';
+      html += sec('Allergien', get(5), 'alert');
+      html += sec('Medikamente', get(6));
+      html += sec('Vorerkrankungen', get(7));
+      html += sec('Wichtige Hinweise', get(8));
+      html += sec('Organspende', get(9));
+      html += sec('Krankenkasse', get(10));
+      var arzt = get(11).split('\x1d');
+      if (arzt[0] || arzt[1]) {
+        html += '<section><h2>Hausarzt</h2>' + (arzt[1]
+          ? '<a class="contact" href="' + tel(arzt[1]) + '"><div><b>' + esc(arzt[0] || 'Hausarzt') + '</b><span>' + esc(arzt[1]) + '</span></div><em>Anrufen</em></a>'
+          : '<p>' + esc(arzt[0]) + '</p>') + '</section>';
+      }
+      var kontakte = get(12) ? get(12).split('\x1e') : [];
+      if (kontakte.length) {
+        html += '<section><h2>Notfallkontakte</h2>' + kontakte.map(function (k) {
+          var p = k.split('\x1d');
+          var label = '<div><b>' + esc(p[0] || 'Kontakt') + '</b>' + (p[1] ? ' (' + esc(p[1]) + ')' : '') + (p[2] ? '<span>' + esc(p[2]) + '</span>' : '') + '</div>';
+          return p[2] ? '<a class="contact" href="' + tel(p[2]) + '">' + label + '<em>Anrufen</em></a>' : '<div class="contact">' + label + '</div>';
+        }).join('') + '</section>';
+      }
+      html += '<p class="foot">Stand: ' + (ymd(get(1)) || 'unbekannt') + '. Diese Angaben stehen nur im QR-Code und werden nirgends gespeichert.</p>';
+      out.innerHTML = html;
+      document.title = 'Notfall: ' + get(2);
+    } catch (e) {
+      out.innerHTML = '<p class="error"><b>Kein gültiger Notfall-Code.</b><br>Der QR-Code ist beschädigt oder unvollständig. Im Notfall: 112 anrufen.</p>';
+    }
+  })();
+</script>
+</body>
+</html>
